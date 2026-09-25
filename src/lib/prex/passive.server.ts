@@ -6,11 +6,13 @@ import { compileScan, isDemoQuery, isPublicIp, newId, normalizeTarget } from "./
 import type {
   CheckResult,
   CollectorRun,
+  CtEntry,
   DnsRecord,
   MapResult,
   Observations,
   Proof,
   ProofMethod,
+  PublicNote,
 } from "./types.ts";
 
 const UA = "Prex passive-footprint (homepage, DNS, RDAP, and security.txt only)";
@@ -316,7 +318,9 @@ async function collectDomain(host: string, registrable: string, verified: boolea
   | "http"
   | "tls"
   | "ctNames"
+  | "ctEntries"
   | "ctError"
+  | "publicNote"
   | "securityTxt"
   | "robotsFound"
   | "lookalikes"
@@ -641,13 +645,13 @@ async function collectDomain(host: string, registrable: string, verified: boolea
         redirect: "manual",
       });
       if (res.status >= 300 && res.status < 400) {
-        return { status: "error" as const, detail: "Certificate log redirected. Not followed.", value: { names: [] as string[], error: "redirect" } };
+        return { status: "error" as const, detail: "Certificate log redirected. Not followed.", value: { names: [] as string[], entries: [] as CtEntry[], error: "redirect" } };
       }
       if (!res.ok) {
-        return { status: "error" as const, detail: `Certificate log HTTP ${res.status}. No names were added.`, value: { names: [] as string[], error: `HTTP ${res.status}` } };
+        return { status: "error" as const, detail: `Certificate log HTTP ${res.status}. No names were added.`, value: { names: [] as string[], entries: [] as CtEntry[], error: `HTTP ${res.status}` } };
       }
       const reader = res.body?.getReader();
-      if (!reader) return { status: "empty" as const, detail: "Certificate log returned no body.", value: { names: [] as string[], error: "empty" } };
+      if (!reader) return { status: "empty" as const, detail: "Certificate log returned no body.", value: { names: [] as string[], entries: [] as CtEntry[], error: "empty" } };
       const chunks: Uint8Array[] = [];
       let received = 0;
       while (true) {
@@ -656,33 +660,43 @@ async function collectDomain(host: string, registrable: string, verified: boolea
         received += step.value.byteLength;
         if (received > 400_000) {
           await reader.cancel();
-          return { status: "empty" as const, detail: "Certificate log was too large and was discarded.", value: { names: [] as string[], error: "oversized" } };
+          return { status: "empty" as const, detail: "Certificate log was too large and was discarded.", value: { names: [] as string[], entries: [] as CtEntry[], error: "oversized" } };
         }
         chunks.push(step.value);
       }
       const text = new TextDecoder().decode(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))));
-      if (!text.trim().startsWith("[")) return { status: "empty" as const, detail: "Certificate log did not return a list.", value: { names: [] as string[], error: "not a list" } };
-      const rows = JSON.parse(text) as { name_value?: string; common_name?: string }[];
+      if (!text.trim().startsWith("[")) return { status: "empty" as const, detail: "Certificate log did not return a list.", value: { names: [] as string[], entries: [] as CtEntry[], error: "not a list" } };
+      const rows = JSON.parse(text) as { name_value?: string; common_name?: string; not_before?: string; not_after?: string; issuer_name?: string }[];
       const names = new Set<string>();
-      for (const row of rows.slice(0, 150)) {
+      const entries: CtEntry[] = [];
+      const seen = new Set<string>();
+      for (const row of rows.slice(0, 200)) {
+        const notBefore = dateOnly(row.not_before);
+        const notAfter = dateOnly(row.not_after);
+        const issuer = row.issuer_name ? String(row.issuer_name).slice(0, 120) : null;
         for (const part of String(row.name_value ?? row.common_name ?? "").split("\n")) {
           const name = part.trim().toLowerCase().replace(/^\*\./, "");
-          if (!name || name.includes("*") || name === host) continue;
+          if (!name || name.includes("*")) continue;
           if (!(name === registrable || name.endsWith(`.${registrable}`))) continue;
+          const key = `${name}|${notBefore ?? ""}`;
+          if (!seen.has(key) && entries.length < 24) {
+            seen.add(key);
+            entries.push({ name, notBefore, notAfter, issuer });
+          }
+          if (name === host || names.size >= 12) continue;
           names.add(name);
-          if (names.size >= 12) break;
         }
       }
       return {
-        status: names.size ? "ok" : "empty",
-        detail: names.size ? `${names.size} name(s), labeled suspected.` : "No additional names.",
-        value: { names: [...names], error: undefined as string | undefined },
+        status: names.size || entries.length ? "ok" : "empty",
+        detail: names.size ? `${names.size} name(s), labeled suspected.` : entries.length ? "Dated certificate rows only." : "No additional names.",
+        value: { names: [...names], entries, error: undefined as string | undefined },
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "certificate log failed";
-      return { status: "error" as const, detail: message, value: { names: [] as string[], error: message } };
+      return { status: "error" as const, detail: message, value: { names: [] as string[], entries: [] as CtEntry[], error: message } };
     }
-  }).catch(() => ({ names: [] as string[], error: "certificate log failed" }));
+  }).catch(() => ({ names: [] as string[], entries: [] as CtEntry[], error: "certificate log failed" }));
 
   const rdap = await timed<NonNullable<Observations["rdap"]>>("rdap", "RDAP", async () => {
     const domain = await readRdap(`https://rdap.org/domain/${encodeURIComponent(host)}`);
@@ -715,6 +729,18 @@ async function collectDomain(host: string, registrable: string, verified: boolea
     durationMs: 0,
   });
 
+  const noteStarted = Date.now();
+  const publicNote = await publicRecord(registrable);
+  collectors.push({
+    id: "public",
+    title: "Public description",
+    status: publicNote.found ? "ok" : "empty",
+    detail: publicNote.found
+      ? `Encyclopedia page “${publicNote.title ?? registrable}”. Not a consumer review.`
+      : "No encyclopedia page matched the name. The score will use the signals that did return.",
+    durationMs: Date.now() - noteStarted,
+  });
+
   return {
     collectors,
     dynamicPolicy,
@@ -723,13 +749,63 @@ async function collectDomain(host: string, registrable: string, verified: boolea
     http,
     tls,
     ctNames: ct?.names ?? [],
+    ctEntries: ct?.entries ?? [],
     ctError: ct?.error,
+    publicNote,
     securityTxt,
     robotsFound,
     lookalikes: [],
     repository: null,
     safeRecheck,
   };
+}
+
+function dateOnly(value: unknown): string | null {
+  const text = String(value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+const EMPTY_NOTE: PublicNote = { source: "Wikipedia", title: null, extract: null, found: false, url: null };
+
+async function publicRecord(query: string): Promise<PublicNote> {
+  const q = query.trim().slice(0, 80);
+  if (q.length < 2) return EMPTY_NOTE;
+  try {
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(q)}&limit=1&namespace=0&format=json`;
+    const res = await fetch(searchUrl, {
+      headers: { accept: "application/json", "user-agent": UA },
+      signal: AbortSignal.timeout(5000),
+      redirect: "error",
+    });
+    if (!res.ok) return EMPTY_NOTE;
+    const text = (await res.text()).slice(0, 50_000);
+    const parsed = JSON.parse(text) as unknown;
+    if (!Array.isArray(parsed) || !Array.isArray(parsed[1]) || typeof parsed[1][0] !== "string") return EMPTY_NOTE;
+    const title = parsed[1][0].slice(0, 180);
+    const hint = Array.isArray(parsed[2]) && typeof parsed[2][0] === "string" ? parsed[2][0] : "";
+    const pageUrl = Array.isArray(parsed[3]) && typeof parsed[3][0] === "string" ? parsed[3][0] : "";
+    if (!pageUrl.startsWith("https://en.wikipedia.org/")) return EMPTY_NOTE;
+    const summaryRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
+      headers: { accept: "application/json", "user-agent": UA },
+      signal: AbortSignal.timeout(5000),
+      redirect: "error",
+    });
+    let extract = hint;
+    if (summaryRes.ok) {
+      const summaryText = (await summaryRes.text()).slice(0, 80_000);
+      const summary = JSON.parse(summaryText) as { extract?: string; type?: string };
+      if (summary.type !== "disambiguation" && summary.extract) extract = summary.extract;
+    }
+    extract = extract.replace(/\s+/g, " ").trim().slice(0, 500);
+    const needle = q.toLowerCase().replace(/^www\./, "");
+    const label = needle.split(".")[0] ?? needle;
+    const blob = `${title} ${extract}`.toLowerCase();
+    const related = blob.includes(needle) || (label.length >= 5 && blob.includes(label));
+    if (!related || !extract) return { ...EMPTY_NOTE, title, url: null };
+    return { source: "Wikipedia", title, extract, found: true, url: pageUrl };
+  } catch {
+    return EMPTY_NOTE;
+  }
 }
 
 function emptyRdap(error: string) {
@@ -904,6 +980,8 @@ function brandObservations(display: string, now: string): Observations {
     http: null,
     tls: null,
     ctNames: [],
+    ctEntries: [],
+    publicNote: null,
     securityTxt: null,
     robotsFound: null,
     lookalikes,
@@ -1016,7 +1094,19 @@ export async function executeMap(input: { target?: unknown; proof?: Proof | null
   }
 
   if (norm.kind === "brand") {
-    return { ok: true, scan: compileScan(brandObservations(norm.display, now), newId("scn")) };
+    const base = brandObservations(norm.display, now);
+    const note = await publicRecord(norm.display);
+    base.publicNote = note;
+    base.collectors.push({
+      id: "public",
+      title: "Public description",
+      status: note.found ? "ok" : "empty",
+      detail: note.found
+        ? `Encyclopedia page “${note.title ?? norm.display}”. Not a consumer review.`
+        : "No encyclopedia page matched the label. The score uses the name and whatever else returned.",
+      durationMs: 0,
+    });
+    return { ok: true, scan: compileScan(base, newId("scn")) };
   }
 
   if (norm.kind === "ip" && norm.host) {
@@ -1040,6 +1130,8 @@ export async function executeMap(input: { target?: unknown; proof?: Proof | null
       http: null,
       tls: null,
       ctNames: [],
+      ctEntries: [],
+      publicNote: null,
       securityTxt: null,
       robotsFound: null,
       lookalikes: [],

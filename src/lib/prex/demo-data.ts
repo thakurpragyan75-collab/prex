@@ -56,6 +56,13 @@ export function northlineObservations(now: string, verified: boolean): Observati
       { id: "ct", title: "Certificate log", status: "ok", detail: "Scripted names, labeled suspected.", durationMs: 20 },
       { id: "docs", title: "security.txt", status: "ok", detail: "Scripted disclosure file.", durationMs: 10 },
       {
+        id: "public",
+        title: "Public description",
+        status: "ok",
+        detail: "Demonstration encyclopedia extract. Not a consumer review and not a live lookup.",
+        durationMs: 5,
+      },
+      {
         id: "recheck",
         title: "Safe recheck",
         status: verified ? "ok" : "denied",
@@ -112,7 +119,7 @@ export function northlineObservations(now: string, verified: boolean): Observati
       ],
       cookies: [{ name: "nl_session", secure: false, httpOnly: true, sameSite: null }],
       technologies: [{ name: "nginx", confidence: 0.7, evidence: "Server header included a version token." }],
-      scripts: ["/assets/app.js", "/assets/app.js.map"],
+      scripts: ["/assets/app.js", "/assets/app.js.map", "https://static.example/northline-widget.js"],
       sourceMap: true,
       redirectNotes: ["Port 80 returned a redirect to https://northline.example/."],
       httpsToHttp: false,
@@ -138,6 +145,23 @@ export function northlineObservations(now: string, verified: boolean): Observati
       "preview.northline.example",
       "legacy.northline.example",
     ],
+    ctEntries: [
+      { name: "northline.example", notBefore: "2019-06-01", notAfter: "2019-09-01", issuer: "Northline Demo CA" },
+      { name: "legacy.northline.example", notBefore: "2020-06-01", notAfter: "2020-09-01", issuer: "Northline Demo CA" },
+      { name: "www.northline.example", notBefore: "2021-02-01", notAfter: "2021-05-01", issuer: "Northline Demo CA" },
+      { name: "app.northline.example", notBefore: "2022-08-14", notAfter: "2022-11-14", issuer: "Northline Demo CA" },
+      { name: "api.northline.example", notBefore: "2023-01-09", notAfter: "2023-04-09", issuer: "Northline Demo CA" },
+      { name: "preview.northline.example", notBefore: "2024-11-02", notAfter: "2025-02-02", issuer: "Northline Demo CA" },
+      { name: "northline.example", notBefore: "2025-09-20", notAfter: "2026-10-07", issuer: "Northline Demo CA" },
+    ],
+    publicNote: {
+      source: "demonstration encyclopedia extract",
+      title: "Northline Freight",
+      extract:
+        "Northline Freight is a fictional carrier used to show Prex. It is not a real company and this text is not a customer review.",
+      found: true,
+      url: null,
+    },
     securityTxt: {
       found: true,
       contacts: ["security@northline.example"],

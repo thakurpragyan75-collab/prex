@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { Ask, OtherSite, Score, TimeCut } from "@/components/prex/lens";
 import { ExposureGraph } from "@/components/prex/graph";
 import { FindingView } from "@/components/prex/finding-view";
 import { Band, Panel } from "@/components/prex/primitives";
@@ -7,12 +8,12 @@ import { Shell } from "@/components/prex/shell";
 import { formatWhen, overlayFor, useHydrated, usePrex } from "@/lib/prex/store";
 import type { Severity } from "@/lib/prex/types";
 
-type View = "graph" | "findings" | "assets" | "changes" | "collectors";
+type View = "graph" | "other" | "time" | "ask" | "score" | "findings" | "assets" | "changes" | "collectors";
 
 export const Route = createFileRoute("/footprint/$scanId")({
   validateSearch: (search: Record<string, unknown>): { view: View; fid?: string } => {
     const view = search.view;
-    const allowed: View[] = ["graph", "findings", "assets", "changes", "collectors"];
+    const allowed: View[] = ["graph", "other", "time", "ask", "score", "findings", "assets", "changes", "collectors"];
     const fid = typeof search.fid === "string" ? search.fid : undefined;
     return {
       view: allowed.includes(view as View) ? (view as View) : "graph",
@@ -63,7 +64,13 @@ function FootprintPage() {
         </div>
         <div className="text-left md:text-right">
           {highest ? <Band severity={highest.severity} score={highest.score} /> : <span className="text-sm text-mist">No rule fired</span>}
-          <p className="mt-1 font-mono text-xs text-faint">{scan.findings.length} results · {scan.assets.length} entities</p>
+          {scan.scorecard ? (
+            <p className="mt-1 font-mono text-xs text-faint">
+              {scan.scorecard.overall.toFixed(1)} / 10 public posture · {scan.scorecard.coverage}/20 signals
+            </p>
+          ) : (
+            <p className="mt-1 font-mono text-xs text-faint">{scan.findings.length} results · {scan.assets.length} entities</p>
+          )}
         </div>
       </header>
 
@@ -86,6 +93,10 @@ function FootprintPage() {
         {(
           [
             ["graph", "Graph"],
+            ["other", "Other site"],
+            ["time", "Time"],
+            ["ask", "Ask"],
+            ["score", "Score"],
             ["findings", "Findings"],
             ["assets", "Assets"],
             ["changes", "Changes"],
@@ -116,6 +127,14 @@ function FootprintPage() {
           <FindingView scan={scan} finding={finding} />
         ) : view === "graph" ? (
           <ExposureGraph scan={scan} />
+        ) : view === "other" ? (
+          <OtherSite scan={scan} />
+        ) : view === "time" ? (
+          <TimeCut scan={scan} />
+        ) : view === "ask" ? (
+          <Ask scan={scan} />
+        ) : view === "score" ? (
+          <Score scan={scan} />
         ) : view === "findings" ? (
           <Findings scanId={scanId} />
         ) : view === "assets" ? (

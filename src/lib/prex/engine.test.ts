@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { compileScan, deriveChanges, explainScore, isDemoQuery, isPublicIp, normalizeTarget, policyFor, registrableDomain } from "./engine.ts";
+import { buildLens } from "./dossier.ts";
 import { northlineObservations } from "./demo-data.ts";
 
 test("normalizer strips paths and refuses private targets", () => {
@@ -55,4 +56,40 @@ test("northline demo never claims a confirmed takeover or a critical header gap"
   });
   assert.ok(delta.some((c) => c.title.includes("HSTS")));
   assert.ok(delta.some((c) => c.kind === "added"));
+});
+
+test("northline lens keeps twenty signals, a time cut, and no invented review", () => {
+  const obs = northlineObservations("2026-09-25T12:00:00.000Z", false);
+  const lens = buildLens(obs);
+  assert.equal(lens.scorecard.axes.length, 20);
+  assert.ok(lens.scorecard.overall >= 0 && lens.scorecard.overall <= 10);
+  assert.ok(lens.scorecard.coverage >= 6);
+  assert.match(lens.scorecard.review, /not a customer review|not a star rating/i);
+  assert.ok(lens.shadow.some((row) => row.kind === "ghost" && row.label === "preview.northline.example"));
+  assert.ok(lens.shadow.some((row) => row.kind === "dangling"));
+  assert.ok(lens.shadow.some((row) => row.kind === "third-party"));
+  assert.ok(lens.timeline.length >= 5);
+  assert.ok(lens.answers.some((item) => item.id === "mail" && /mx\.northline\.example/.test(item.answer)));
+  const scan = compileScan(obs, "scn_lens");
+  assert.equal(scan.scorecard?.axes.length, 20);
+});
+
+test("a name with no public record still rates out of ten", () => {
+  const bare = northlineObservations("2026-09-25T12:00:00.000Z", false);
+  bare.demo = false;
+  bare.normalized = normalizeTarget("Quiet Label");
+  bare.dns = null;
+  bare.rdap = null;
+  bare.http = null;
+  bare.tls = null;
+  bare.ctNames = [];
+  bare.ctEntries = [];
+  bare.publicNote = null;
+  bare.securityTxt = null;
+  bare.robotsFound = null;
+  bare.lookalikes = [];
+  const lens = buildLens(bare);
+  assert.equal(lens.scorecard.coverage, 0);
+  assert.equal(lens.scorecard.overall, 4);
+  assert.match(lens.scorecard.basis, /not a review/i);
 });

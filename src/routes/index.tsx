@@ -55,9 +55,7 @@ function Home() {
             The public record, with the receipt attached.
           </h1>
           <p className="mt-4 max-w-xl text-base leading-relaxed text-mist">
-            Give Prex a domain, URL, IP, or brand. It runs a passive map — DNS, registration, certificate
-            names, and one homepage — then explains every result. It does not scan ports, guess passwords, or
-            invent an owner.
+            Give Prex a domain, URL, IP, or brand. It maps the public footprint, the names around it, and a 20-signal posture score out of 10. It does not scan ports, guess passwords, invent reviews, or invent an owner.
           </p>
           <form
             className="mt-8 flex flex-col gap-2 sm:flex-row"

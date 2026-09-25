@@ -26,7 +26,11 @@ const SECTIONS = [
   },
   {
     title: "Scoring",
-    body: "Score = round(exposure × impact × exploitability × confidence × criticality × 1.35), clamped to 0–100. Each factor is stored with a sentence. A missing header cannot become critical by itself.",
+    body: "Finding score = round(exposure × impact × exploitability × confidence × criticality × 1.35), clamped to 0–100. Each factor is stored with a sentence. A missing header cannot become critical by itself. The separate out-of-10 posture number is an average of up to 20 public signals and is not that formula.",
+  },
+  {
+    title: "The other site, the time cut, and the score",
+    body: "The other site lists certificate-log names, aliases, script hosts, and mail from the same pass. It does not crawl them. The time cut is dated certificate and registration rows, not a claim those names still resolve. The out-of-10 figure averages only the signals that returned, up to 20. Blank signals are not filled in. If almost nothing came back, the number is from the name alone and is labeled unmeasured. Wikipedia text, when a page matches the name, is an encyclopedia extract. It is not a customer review. No review site is queried.",
   },
   {
     title: "Disclosure",

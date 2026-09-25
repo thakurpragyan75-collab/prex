@@ -157,6 +157,61 @@ export type ScanRecord = {
   };
   verification: { verified: boolean; method: string | null; detail: string };
   durationMs: number;
+  shadow?: ShadowRow[];
+  timeline?: TimeMark[];
+  answers?: Answer[];
+  scorecard?: Scorecard;
+};
+
+export type CtEntry = {
+  name: string;
+  notBefore: string | null;
+  notAfter: string | null;
+  issuer: string | null;
+};
+
+export type PublicNote = {
+  source: string;
+  title: string | null;
+  extract: string | null;
+  found: boolean;
+  url: string | null;
+};
+
+export type ScoreAxis = {
+  id: string;
+  title: string;
+  score: number | null;
+  tone: "good" | "mixed" | "bad" | "unknown";
+  note: string;
+};
+
+export type Scorecard = {
+  overall: number;
+  coverage: number;
+  basis: string;
+  review: string;
+  axes: ScoreAxis[];
+};
+
+export type ShadowRow = {
+  id: string;
+  kind: "ghost" | "lookalike" | "third-party" | "mail" | "dangling";
+  label: string;
+  detail: string;
+};
+
+export type TimeMark = {
+  id: string;
+  at: string;
+  label: string;
+  detail: string;
+};
+
+export type Answer = {
+  id: string;
+  ask: string;
+  answer: string;
 };
 
 export type DnsRecord = { type: string; name: string; value: string; ttl: string };
@@ -216,7 +271,9 @@ export type Observations = {
     error?: string;
   };
   ctNames: string[];
+  ctEntries: CtEntry[];
   ctError?: string;
+  publicNote: PublicNote | null;
   securityTxt: null | { found: boolean; contacts: string[]; excerpt: string };
   robotsFound: boolean | null;
   lookalikes: string[];

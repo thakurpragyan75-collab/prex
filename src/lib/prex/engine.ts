@@ -1,3 +1,4 @@
+import { buildLens } from "./dossier.ts";
 import type {
   Asset,
   AssetStatus,
@@ -324,6 +325,7 @@ export function collectorPreview(norm: NormalizedTarget, mode: ScanMode): { titl
     { title: "RDAP", expect: "run" },
     { title: norm.kind === "domain" ? "TLS and homepage headers" : "HTTP", expect: norm.kind === "domain" ? "run" : "skip" },
     { title: "Certificate log", expect: norm.kind === "domain" ? "run" : "skip" },
+    { title: "Public description", expect: norm.kind === "domain" ? "run" : "skip" },
     { title: mode === "verified" ? "Safe recheck" : "Safe recheck (locked)", expect: mode === "verified" ? "run" : "deny" },
     { title: "Port scan, fuzzing, exploits", expect: "deny" },
   ];
@@ -1417,6 +1419,7 @@ export function compileScan(obs: Observations, id: string): ScanRecord {
         },
     verification: obs.verification,
     durationMs: obs.collectors.reduce((sum, c) => sum + c.durationMs, 0),
+    ...buildLens(obs),
   };
 }
 

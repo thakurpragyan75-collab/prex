@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-canvas: #0c0e11;
+  --color-panel: #15191e;
+  --color-inset: #101317;
+  --color-ink: #e8e4dc;
+  --color-mist: #b1aaa0;
+  --color-faint: #9c968c;
+  --color-line: #2c323a;
+  --color-line-strong: #45505c;
+  --color-paper: #e8e4dc;
+  --color-danger: #d4655a;
+  --color-warn: #c4924a;
+  --color-ok: #7f9a78;
+  --color-info: #8aa0b3;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    text-wrap: pretty;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    background: var(--color-line-strong);
+    color: var(--color-ink);
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-display);
+}
+
+.press:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.prex-wait {
+  animation: prex-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes prex-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prex-wait {
+    animation: none;
+  }
+
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #14120f;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
